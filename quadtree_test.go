@@ -8,10 +8,23 @@ import (
 
 type TestData struct {
 	id int
+	position Point
 }
 
 func NewData(id int) *TestData {
-	return &TestData{id}
+	return &TestData{id, Point{0, 0}}
+}
+
+func NewDataWithPosition(id int, position Point) *TestData {
+	return &TestData{id, position}
+}
+
+func ToData(d interface{}) *TestData {
+	data, ok := d.(*TestData)
+	if (!ok) {
+		panic("it's not a TestData")
+	}
+ 	return data
 }
 
 func BenchmarkAdd(b *testing.B) {
@@ -50,6 +63,48 @@ func BenchmarkQuery(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		qt.Query(bounds[i])
 	}
+}
+
+func TestQueryIterative_returnsCorrectPosition(t *testing.T) {
+	qt, _ := NewQuadtree(Rect{-1, -1, 1, 1}, 2, 2)
+
+	d1 := NewDataWithPosition(1, Point{-0.5, -0.1})
+	d2 := NewDataWithPosition(2, Point{-0.1, -0.3})
+	d3 := NewDataWithPosition(3, Point{-0.7, -0.7})
+	d4 := NewDataWithPosition(4, Point{-0.3, -0.9})
+	qt.Add(d1, d1.position)
+	qt.Add(d2, d2.position)
+	qt.Add(d3, d3.position)
+	qt.Add(d4, d4.position)
+
+	found := make([]interface{}, 0)
+	qt.QueryIterative(Rect{-1, -1, 1, 1}, func(data interface{}, pos Point) bool {
+		found = append(found, data)
+		d := ToData(data)
+		assert.Equal(t, d.position, pos)
+		return true
+	})
+	assert.ElementsMatch(t, [4]*TestData{d1, d2, d3, d4}, found)
+}
+
+func TestQueryIterative_stopsWhenReturnFalse(t *testing.T) {
+	qt, _ := NewQuadtree(Rect{-1, -1, 1, 1}, 2, 2)
+
+	d1, d2, d3, d4 := NewData(1), NewData(2), NewData(3), NewData(4)
+	qt.Add(d1, Point{-0.5, -0.1})
+	qt.Add(d2, Point{-0.1, -0.3})
+	qt.Add(d3, Point{-0.7, -0.7})
+	qt.Add(d4, Point{-0.3, -0.9})
+
+	count := 0
+	qt.QueryIterative(Rect{-1, -1, 1, 1}, func(data interface{}, pos Point) bool {
+		count += 1
+		if (count > 1) {
+			return false
+		}
+		return true
+	})
+	assert.Equal(t, 2, count)
 }
 
 func TestQuery_stressTest_returnsAllAddedPoints(t *testing.T) {

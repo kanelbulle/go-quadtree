@@ -98,7 +98,7 @@ func (qt *Quadtree) Size() int {
 	return qt.size
 }
 
-// Returns the objects within the given bounds
+// Returns the objects within the given bounds.
 func (qt *Quadtree) Query(bounds Rect) []interface{} {
 	items := make([]interface{}, 0, 10)
 	queryInternal(qt.root, bounds, func(item treeEntry) bool {
@@ -108,28 +108,47 @@ func (qt *Quadtree) Query(bounds Rect) []interface{} {
 	return items
 }
 
+// Iterates over the items inside the given bounds. it will be invoked with each
+// found data and its corresponding position until all items inside bounds have
+// been found. The ordering is undefined.
+func (qt *Quadtree) QueryIterative(bounds Rect, it func(interface{}, Point) bool) {
+	queryInternal(qt.root, bounds, func(item treeEntry) bool {
+		return it(item.data, item.position)
+	})
+}
+
 // This will recurse down the tree, removing the nodes that
 // have no overlap with the given bounds. When all overlapping
 // nodes are found, their items are returned.
-func queryInternal(node *node, bounds Rect, consumer consumer) {
+// Returns false when search should be terminated.
+func queryInternal(node *node, bounds Rect, consumer consumer) bool {
 	if overlaps(node.bounds, bounds) {
 		if node.items == nil {
 			// This node has no items, but it has children. Keep recursing.
-			queryInternal(node.ul, bounds, consumer)
-			queryInternal(node.ur, bounds, consumer)
-			queryInternal(node.ll, bounds, consumer)
-			queryInternal(node.lr, bounds, consumer)
+			keepGoing := queryInternal(node.ul, bounds, consumer)
+			if (keepGoing) {
+			    keepGoing = queryInternal(node.ur, bounds, consumer)	
+			}
+			if (keepGoing) {
+				keepGoing = queryInternal(node.ll, bounds, consumer)
+			}
+			if (keepGoing) {
+				queryInternal(node.lr, bounds, consumer)	
+			}
 		} else {
 			// We reached an end node. Since this node may only be partially
 			// overlapping, ensure each item is inside bounds before consuming.
 			for _, e := range node.items {
 				if bounds.Contains(e.position) {
-					// TODO: handle the return value and exit
-					consumer(e)
+					// If consumer returns false, stop immediately and terminate.
+					if (!consumer(e)) {
+						return false
+					}
 				}
 			}
 		}
 	}
+	return true
 }
 
 // Adds the data to the tree with the given position.
@@ -145,9 +164,6 @@ func (qt *Quadtree) Add(data interface{}, position Point) (err error) {
 }
 
 // Recurses down the tree to find the correct node for the item.
-// 1) Finds an empty node and adds the data to that node
-// 2) Finds a node that need to be split into child nodes
-// 3)
 func addInternal(qt *Quadtree, node *node, item treeEntry) {
 	quadrant := whichQuadrant(node.bounds, item.position)
 	if quadrant == quadrantNone {
