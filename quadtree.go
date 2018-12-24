@@ -9,9 +9,15 @@ import (
 // performant access to items that can be assigned a 2d position. Internally,
 // it represents the data with a tree by segmenting each level into four quadrants.
 // The Quadtree has two attributes that may be tweaked depending on your use case:
+//
 // Maximum depth: To get the spatial resolution you want, the number of levels
 // can be adjusted. For a depth D, the space will be subdivided 2^D times. The
 // default is 10.
+//
+// Max items per node: The maximum number of items to store in a single node before
+// it is split into smaller nodes. Note that if a node is full, and the maximum depth
+// has been reached, max items per node will be ignored.
+//
 // The coordinate system of a Quadtree has origo at the lower left corner, with X
 // and Y growing positively to the upper right corner. X is the horizontal axis,
 // Y is the vertical axis.
@@ -26,11 +32,14 @@ type Quadtree struct {
 	debugAssertions bool
 }
 
+// A 2D point, specified in the Cartesian coordinate system.
 type Point struct {
 	X float64
 	Y float64
 }
 
+// An open-ended rectangle, where X, Y are inclusive
+// but exclusive X+Width and Y+Height.
 type Rect struct {
 	X      float64
 	Y      float64
@@ -62,8 +71,10 @@ type treeEntry struct {
 	data     interface{}
 }
 
+// A function that takes treeEntries to iterate over entries.
 type consumer func(treeEntry) bool
 
+// Returns a Quadtree.
 func NewQuadtree(bounds Rect, maxDepth, maxItemsPerNode int) (*Quadtree, error) {
 	if maxDepth <= 0 {
 		return nil, fmt.Errorf("Creating tree failed: maxDepth must be larger than 1")
@@ -82,6 +93,7 @@ func NewQuadtree(bounds Rect, maxDepth, maxItemsPerNode int) (*Quadtree, error) 
 	}, nil
 }
 
+// Returns the number of items added to this tree.
 func (qt *Quadtree) Size() int {
 	return qt.size
 }
